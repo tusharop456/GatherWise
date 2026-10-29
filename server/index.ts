@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { validateEventPayload } from './validator';
+import { validateEventPayload, validateBudgetCategoriesInput } from './validator';
 import {
   isLiveAIConfigured,
   getModelIdentifier,
@@ -174,21 +174,15 @@ app.post('/api/ai/budget-reduction', rateLimiter, async (req: Request, res: Resp
       return;
     }
 
-    const rawCategories = req.body?.categories;
-    if (!Array.isArray(rawCategories) || rawCategories.length === 0) {
-      res.status(400).json({ error: 'Budget categories array is required.' });
+    const categoriesValidation = validateBudgetCategoriesInput(req.body?.categories);
+    if (!categoriesValidation.valid || !categoriesValidation.data) {
+      res.status(400).json({ error: categoriesValidation.error || 'Invalid budget categories.' });
       return;
     }
 
-    const sanitizedCategories = rawCategories.map((c: any) => ({
-      id: String(c.id || ''),
-      name: String(c.name || 'Category'),
-      plannedAmount: Number(c.plannedAmount) || 0,
-    }));
-
     const { result, isSampleMode, isLiveVerified } = await generateBudgetReduction(
       eventValidation.data,
-      sanitizedCategories,
+      categoriesValidation.data,
       abortController.signal
     );
 

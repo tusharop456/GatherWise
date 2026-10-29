@@ -19,6 +19,7 @@ import {
   validatePersonalizedIdeasOutput,
 } from '../server/validator';
 import { EventDetails, EventPlan, BudgetCategory } from '../src/types';
+import { applyProposalToPlan } from '../src/utils/planMerge';
 
 // Mock the GoogleGenAI client from @google/genai
 const mockGenerateContent = vi.fn();
@@ -200,6 +201,56 @@ describe('Live AI Error Handling: Truncation, Timeouts, and Upstream Failures', 
         callGeminiRaw('system prompt', 'user prompt', undefined, 30000, controller.signal)
       ).rejects.toThrow(/timed out.*and upstream connection was cancelled/i);
     });
+
+    it('propagates AbortSignal across transport boundary and cancels in-flight fetch request', async () => {
+      const controller = new AbortController();
+      const fetchMock = vi.fn().mockImplementation((_url, options) => {
+        return new Promise((_, reject) => {
+          if (options?.signal) {
+            options.signal.addEventListener('abort', () => {
+              const err = new Error('The operation was aborted.');
+              err.name = 'AbortError';
+              reject(err);
+            });
+          }
+        });
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const proposalPromise = requestAIProposal(mockEvent, controller.signal);
+      controller.abort();
+
+      await expect(proposalPromise).rejects.toThrow(/abort/i);
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/ai/proposal',
+        expect.objectContaining({ signal: controller.signal })
+      );
+    });
+
+    it('cancels in-flight budget reduction fetch request at transport boundary', async () => {
+      const controller = new AbortController();
+      const fetchMock = vi.fn().mockImplementation((_url, options) => {
+        return new Promise((_, reject) => {
+          if (options?.signal) {
+            options.signal.addEventListener('abort', () => {
+              const err = new Error('The operation was aborted.');
+              err.name = 'AbortError';
+              reject(err);
+            });
+          }
+        });
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const reductionPromise = requestAIBudgetReduction(mockEvent, mockCategories, controller.signal);
+      controller.abort();
+
+      await expect(reductionPromise).rejects.toThrow(/abort/i);
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/ai/budget-reduction',
+        expect.objectContaining({ signal: controller.signal })
+      );
+    });
   });
 
   // ==========================================
@@ -295,10 +346,142 @@ describe('Live AI Error Handling: Truncation, Timeouts, and Upstream Failures', 
   });
 
   // ==========================================
-  // 4. PRESERVING EXISTING EDITS ON FAILURE
+  // 4. PRESERVING EXISTING EDITS AND PROPOSAL MERGE STATE TRANSITIONS
   // ==========================================
-  describe('Preservation of User Workspace on Generation Failure', () => {
-    it('leaves existing budget categories, tasks, and notes intact when live generation fails', async () => {
+  describe('Proposal Data Preservation and Workspace State Transitions', () => {
+    it('preserves existing tasks, IDs, completion states, and recorded expenses by default (merge mode)', () => {
+      const initialPlan: EventPlan = {
+        version: 1,
+        details: mockEvent,
+        budget: [
+          { id: 'cat-venue', name: 'Open-Air Lawn Venue', plannedAmount: 300000, actualAmount: 120000, notes: 'Advance paid' },
+          { id: 'cat-custom', name: 'Handcrafted Invitations', plannedAmount: 50000, actualAmount: 25000, notes: 'Local artisan' },
+        ],
+        tasks: [
+          { id: 'task-1', title: 'Confirm lawn dates', category: 'Venue', dueDate: '2027-01-15', completed: true, isCritical: true },
+          { id: 'task-custom', title: 'Call calligraphy artist', category: 'General', dueDate: '2027-01-20', completed: false, isCritical: false },
+        ],
+        vendors: [{ id: 'v-1', name: 'Premier Florals', category: 'Decor', status: 'confirmed', notes: 'Deposit paid', quote: 50000, checklistResponses: {} }],
+        ideas: null,
+        aiNoticeAcknowledged: true,
+        lastModified: '2026-10-24T12:00:00.000Z',
+      };
+
+      const proposal = {
+        summary: 'Updated event strategy',
+        themeIdeas: ['Theme 1'],
+        activityIdeas: ['Activity 1'],
+        budgetAllocations: [
+          { category: 'Open-Air Lawn Venue', plannedAmount: 350000, notes: 'Updated venue allocation' },
+          { category: 'Artisan Catering', plannedAmount: 200000, notes: 'New catering category' },
+        ],
+        tasks: [
+          { title: 'Confirm lawn dates', category: 'Venue', dueDate: '2027-01-18', isCritical: true },
+          { title: 'Tasting session with caterer', category: 'Catering', dueDate: '2027-02-01', isCritical: false },
+        ],
+        vendorChecklists: [],
+        assumptionsAndLimitations: [],
+        generatedAt: '2026-10-24T12:00:00.000Z',
+        isSampleMode: false,
+      };
+
+      const mergedPlan = applyProposalToPlan(initialPlan, proposal, 'merge');
+
+      // 1. Budget preservation:
+      // Matched category updates plannedAmount but preserves existing ID and actualAmount
+      const lawnCat = mergedPlan.budget.find((b) => b.name === 'Open-Air Lawn Venue');
+      expect(lawnCat).toBeDefined();
+      expect(lawnCat?.id).toBe('cat-venue');
+      expect(lawnCat?.actualAmount).toBe(120000);
+      expect(lawnCat?.plannedAmount).toBe(350000);
+
+      // Custom category and its recorded spending preserved completely
+      const customCat = mergedPlan.budget.find((b) => b.id === 'cat-custom');
+      expect(customCat).toBeDefined();
+      expect(customCat?.actualAmount).toBe(25000);
+      expect(customCat?.plannedAmount).toBe(50000);
+
+      // New proposal category added
+      const cateringCat = mergedPlan.budget.find((b) => b.name === 'Artisan Catering');
+      expect(cateringCat).toBeDefined();
+      expect(cateringCat?.plannedAmount).toBe(200000);
+      expect(cateringCat?.actualAmount).toBe(0);
+
+      // 2. Task preservation:
+      // Matched task keeps existing ID and completed state
+      const matchedTask = mergedPlan.tasks.find((t) => t.id === 'task-1');
+      expect(matchedTask).toBeDefined();
+      expect(matchedTask?.completed).toBe(true);
+
+      // Custom task kept intact
+      const customTask = mergedPlan.tasks.find((t) => t.id === 'task-custom');
+      expect(customTask).toBeDefined();
+      expect(customTask?.completed).toBe(false);
+
+      // New suggestion added with unique ID
+      const newTask = mergedPlan.tasks.find((t) => t.title === 'Tasting session with caterer');
+      expect(newTask).toBeDefined();
+      expect(newTask?.id).toBeDefined();
+      expect(newTask?.id).not.toBe('task-1');
+      expect(newTask?.completed).toBe(false);
+
+      // Total tasks is 3
+      expect(mergedPlan.tasks).toHaveLength(3);
+
+      // Vendors and metadata preserved
+      expect(mergedPlan.vendors).toHaveLength(1);
+      expect(mergedPlan.vendors[0].name).toBe('Premier Florals');
+    });
+
+    it('replaces categories and tasks when explicit replace mode is requested', () => {
+      const initialPlan: EventPlan = {
+        version: 1,
+        details: mockEvent,
+        budget: [
+          { id: 'cat-old', name: 'Old Venue', plannedAmount: 100000, actualAmount: 50000, notes: 'Old' },
+        ],
+        tasks: [
+          { id: 'task-old', title: 'Old Task', category: 'General', dueDate: '2027-01-01', completed: true, isCritical: false },
+        ],
+        vendors: [{ id: 'v-1', name: 'Decor Vendor', category: 'Decor', status: 'contacted', notes: 'Keep this', quote: 40000, checklistResponses: {} }],
+        ideas: null,
+        aiNoticeAcknowledged: true,
+        lastModified: '2026-10-24T12:00:00.000Z',
+      };
+
+      const proposal = {
+        summary: 'Brand new strategy',
+        themeIdeas: [],
+        activityIdeas: [],
+        budgetAllocations: [
+          { category: 'New Venue', plannedAmount: 250000, notes: 'Replaced' },
+        ],
+        tasks: [
+          { title: 'New Task 1', category: 'Venue', dueDate: '2027-02-01', isCritical: true },
+        ],
+        vendorChecklists: [],
+        assumptionsAndLimitations: [],
+        generatedAt: '2026-10-24T12:00:00.000Z',
+        isSampleMode: false,
+      };
+
+      const replacedPlan = applyProposalToPlan(initialPlan, proposal, 'replace');
+
+      // Replaces categories cleanly
+      expect(replacedPlan.budget).toHaveLength(1);
+      expect(replacedPlan.budget[0].name).toBe('New Venue');
+      expect(replacedPlan.budget[0].actualAmount).toBe(0);
+
+      // Replaces tasks cleanly
+      expect(replacedPlan.tasks).toHaveLength(1);
+      expect(replacedPlan.tasks[0].title).toBe('New Task 1');
+
+      // Preserves existing vendors
+      expect(replacedPlan.vendors).toHaveLength(1);
+      expect(replacedPlan.vendors[0].name).toBe('Decor Vendor');
+    });
+
+    it('ensures workspace state is never mutated when a generation failure occurs', async () => {
       const initialPlan: EventPlan = {
         version: 1,
         details: mockEvent,
@@ -314,7 +497,6 @@ describe('Live AI Error Handling: Truncation, Timeouts, and Upstream Failures', 
         lastModified: '2026-10-24T12:00:00.000Z',
       };
 
-      // Mock an upstream failure during proposal generation
       vi.stubGlobal(
         'fetch',
         vi.fn().mockResolvedValue({
@@ -324,20 +506,17 @@ describe('Live AI Error Handling: Truncation, Timeouts, and Upstream Failures', 
         })
       );
 
-      let failed = false;
+      let caughtError: any;
       try {
         await requestAIProposal(initialPlan.details);
-      } catch {
-        failed = true;
+      } catch (err) {
+        caughtError = err;
       }
 
-      expect(failed).toBe(true);
-
-      // Verify that initialPlan state was NOT modified or wiped
-      expect(initialPlan.budget.length).toBe(1);
-      expect(initialPlan.budget[0].name).toBe('Custom Heritage Pavilion');
+      expect(caughtError).toBeDefined();
+      // Workspace plan was not mutated
+      expect(initialPlan.budget).toHaveLength(1);
       expect(initialPlan.budget[0].actualAmount).toBe(150000);
-      expect(initialPlan.tasks.length).toBe(1);
       expect(initialPlan.tasks[0].completed).toBe(true);
     });
   });

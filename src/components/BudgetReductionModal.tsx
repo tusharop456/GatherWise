@@ -22,13 +22,27 @@ export const BudgetReductionModal: React.FC<BudgetReductionModalProps> = ({
   onApplyReductions,
   onClose,
 }) => {
+  // Deduplicate proposed modifications by categoryId deterministically
+  const uniqueModifications = React.useMemo(() => {
+    if (!reductionResult?.proposedModifications) return [];
+    const seen = new Set<string>();
+    const unique: ProposedBudgetCut[] = [];
+    for (const m of reductionResult.proposedModifications) {
+      if (!seen.has(m.categoryId)) {
+        seen.add(m.categoryId);
+        unique.push(m);
+      }
+    }
+    return unique;
+  }, [reductionResult]);
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   React.useEffect(() => {
-    if (reductionResult?.proposedModifications) {
-      setSelectedIds(new Set(reductionResult.proposedModifications.map(m => m.categoryId)));
+    if (uniqueModifications.length > 0) {
+      setSelectedIds(new Set(uniqueModifications.map(m => m.categoryId)));
     }
-  }, [reductionResult]);
+  }, [uniqueModifications]);
 
   if (!isOpen || !reductionResult) return null;
 
@@ -44,7 +58,7 @@ export const BudgetReductionModal: React.FC<BudgetReductionModalProps> = ({
     });
   };
 
-  const selectedModifications = reductionResult.proposedModifications.filter(m =>
+  const selectedModifications = uniqueModifications.filter(m =>
     selectedIds.has(m.categoryId)
   );
 
@@ -140,11 +154,11 @@ export const BudgetReductionModal: React.FC<BudgetReductionModalProps> = ({
           {/* Proposed Modifications List */}
           <div>
             <h3 style={{ fontSize: '0.9375rem', fontWeight: 600, marginBottom: 'var(--space-2)' }}>
-              Select Reductions to Apply ({selectedModifications.length} of {reductionResult.proposedModifications.length} selected):
+              Select Reductions to Apply ({selectedModifications.length} of {uniqueModifications.length} selected):
             </h3>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {reductionResult.proposedModifications.map(mod => {
+              {uniqueModifications.map(mod => {
                 const isSelected = selectedIds.has(mod.categoryId);
                 return (
                   <div

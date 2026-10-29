@@ -85,6 +85,78 @@ export function validateEventPayload(body: unknown): { valid: boolean; error?: s
   return { valid: true, data };
 }
 
+export interface SanitizedCategoryInput {
+  id: string;
+  name: string;
+  plannedAmount: number;
+}
+
+/**
+ * Validates budget category input for AI budget reduction.
+ * Rejects null/non-object rows, duplicate or empty IDs, invalid names,
+ * negative/non-finite/out-of-range amounts, and excessive array lengths.
+ */
+export function validateBudgetCategoriesInput(
+  rawCategories: unknown
+): { valid: boolean; error?: string; data?: SanitizedCategoryInput[] } {
+  if (!Array.isArray(rawCategories)) {
+    return { valid: false, error: 'Budget categories must be provided as an array.' };
+  }
+
+  if (rawCategories.length === 0) {
+    return { valid: false, error: 'At least one budget category is required.' };
+  }
+
+  if (rawCategories.length > 50) {
+    return { valid: false, error: 'Too many budget categories. Maximum 50 allowed.' };
+  }
+
+  const seenIds = new Set<string>();
+  const sanitized: SanitizedCategoryInput[] = [];
+
+  for (let i = 0; i < rawCategories.length; i++) {
+    const item = rawCategories[i];
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return { valid: false, error: `Category row at index ${i} must be a valid non-null object.` };
+    }
+
+    const row = item as Record<string, unknown>;
+
+    // 1. Validate ID
+    if (typeof row.id !== 'string' || row.id.trim().length === 0) {
+      return { valid: false, error: `Category at index ${i} has an empty or invalid ID.` };
+    }
+    const cleanId = row.id.trim();
+    if (seenIds.has(cleanId)) {
+      return { valid: false, error: `Duplicate category ID detected: "${cleanId}".` };
+    }
+    seenIds.add(cleanId);
+
+    // 2. Validate Name
+    if (typeof row.name !== 'string' || row.name.trim().length === 0 || row.name.trim().length > 60) {
+      return { valid: false, error: `Category "${cleanId}" must have a name between 1 and 60 characters.` };
+    }
+    const cleanName = row.name.trim();
+
+    // 3. Validate Planned Amount
+    const amt = Number(row.plannedAmount);
+    if (!Number.isFinite(amt) || amt < 0 || amt > 1000000000) {
+      return {
+        valid: false,
+        error: `Category "${cleanName}" planned amount must be a finite non-negative number up to 1,000,000,000.`,
+      };
+    }
+
+    sanitized.push({
+      id: cleanId,
+      name: cleanName,
+      plannedAmount: amt,
+    });
+  }
+
+  return { valid: true, data: sanitized };
+}
+
 export function validateAIProposalOutput(
   rawJson: unknown,
   event: EventDetails,
@@ -218,8 +290,9 @@ export function validateBudgetReductionOutput(
   const categoryMap = new Map(currentCategories.map(c => [c.id, c]));
   const categoryNameMap = new Map(currentCategories.map(c => [c.name.toLowerCase().trim(), c]));
 
-  const proposedModifications: ProposedBudgetCut[] = [];
-  let totalSavingsMinor = 0;
+  // Deduplicate modifications deterministically: keep at most one cut per unique categoryId.
+  // If duplicate cuts for the same category are proposed, keep the one with greatest valid savings.
+  const uniqueModificationsMap = new Map<string, ProposedBudgetCut>();
 
   if (Array.isArray(o.proposedModifications)) {
     for (const mod of o.proposedModifications) {
@@ -237,21 +310,31 @@ export function validateBudgetReductionOutput(
 
           if (proposedMinor < currentMinor) {
             const savingsMinor = currentMinor - proposedMinor;
-            totalSavingsMinor += savingsMinor;
+            const existingCut = uniqueModificationsMap.get(matched.id);
 
-            proposedModifications.push({
-              categoryId: matched.id,
-              categoryName: matched.name,
-              currentAmount: matched.plannedAmount,
-              proposedAmount: fromMinorUnits(proposedMinor),
-              savingsAmount: fromMinorUnits(savingsMinor),
-              rationale: typeof m.rationale === 'string' ? m.rationale.slice(0, 250) : 'Streamlined cost alternative.',
-            });
+            // Deterministic deduplication: keep modification if not seen yet,
+            // or if duplicate has greater savings, keep the better one.
+            if (!existingCut || toMinorUnits(existingCut.savingsAmount) < savingsMinor) {
+              uniqueModificationsMap.set(matched.id, {
+                categoryId: matched.id,
+                categoryName: matched.name,
+                currentAmount: matched.plannedAmount,
+                proposedAmount: fromMinorUnits(proposedMinor),
+                savingsAmount: fromMinorUnits(savingsMinor),
+                rationale: typeof m.rationale === 'string' ? m.rationale.slice(0, 250) : 'Streamlined cost alternative.',
+              });
+            }
           }
         }
       }
     }
   }
+
+  const proposedModifications = Array.from(uniqueModificationsMap.values());
+  const totalSavingsMinor = proposedModifications.reduce(
+    (sum, cut) => sum + toMinorUnits(cut.savingsAmount),
+    0
+  );
 
   const practicalTradeoffs = Array.isArray(o.practicalTradeoffs)
     ? o.practicalTradeoffs.filter(t => typeof t === 'string' && t.trim()).map(t => String(t).slice(0, 200))

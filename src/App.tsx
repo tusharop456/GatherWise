@@ -11,12 +11,29 @@ import { ProposalReviewModal } from './components/ProposalReviewModal';
 import { BudgetReductionModal } from './components/BudgetReductionModal';
 import { PrivacyNoticeModal } from './components/PrivacyNoticeModal';
 import { Toast, ToastMessage } from './components/Toast';
-import { EventPlan, EventType, EventDetails, BudgetCategory, TimelineTask, AIProposal, ProposedBudgetCut } from './types';
+import { EventPlan, EventType, EventDetails, BudgetCategory, AIProposal, ProposedBudgetCut, BudgetReductionResult } from './types';
 import { SAMPLE_EVENTS, SAMPLE_WEDDING } from './data/sampleEvents';
 import { savePlanToStorage, loadPlanFromStorage, clearPlanFromStorage } from './utils/storage';
 import { checkServerHealth, requestAIProposal, requestAIBudgetReduction, requestAIIdeas, HealthStatus } from './services/aiService';
-import { calculatePlannedTotal, isOverBudgetPlanned } from './utils/budget';
+import { calculatePlannedTotal, isOverBudgetPlanned, applyBudgetReductions, formatCurrency } from './utils/budget';
 import { getTaskTimeStatus, getTodayDateString } from './utils/dates';
+import { applyProposalToPlan, ProposalApplicationMode } from './utils/planMerge';
+
+function computeEventRevision(details: EventDetails): string {
+  return `${details.id}:${details.name}:${details.date}:${details.totalBudget}:${details.guestCount}:${details.updatedAt}`;
+}
+
+function computeBudgetRevision(budget: BudgetCategory[]): string {
+  return budget.map(b => `${b.id}:${b.plannedAmount}`).join('|');
+}
+
+interface ActiveRequestContext {
+  requestId: string;
+  type: 'proposal' | 'reduction' | 'ideas';
+  eventId: string;
+  eventRevision: string;
+  budgetRevision?: string;
+}
 
 export const App: React.FC = () => {
   // Plan state initialized from LocalStorage or default sample
@@ -36,7 +53,7 @@ export const App: React.FC = () => {
   const [pendingProposal, setPendingProposal] = useState<AIProposal | null>(null);
 
   const [budgetReductionModalOpen, setBudgetReductionModalOpen] = useState(false);
-  const [pendingBudgetReduction, setPendingBudgetReduction] = useState<any>(null);
+  const [pendingBudgetReduction, setPendingBudgetReduction] = useState<BudgetReductionResult | null>(null);
 
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
   const [queuedAIAction, setQueuedAIAction] = useState<(() => void) | null>(null);
@@ -44,8 +61,9 @@ export const App: React.FC = () => {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // AbortController ref to allow cancellation and avoid race conditions
+  // In-flight request tracking and AbortController to prevent stale responses and race conditions
   const activeAbortController = useRef<AbortController | null>(null);
+  const activeRequestRef = useRef<ActiveRequestContext | null>(null);
   const mainRef = useRef<HTMLElement>(null);
 
   // Reset scroll position on activeTab switch
@@ -74,11 +92,38 @@ export const App: React.FC = () => {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
-  // Check server health on mount
+  // Active AI cancellation helper
+  const cancelActiveAI = useCallback((_reason?: string) => {
+    if (activeAbortController.current) {
+      activeAbortController.current.abort();
+      activeAbortController.current = null;
+    }
+    activeRequestRef.current = null;
+    setIsGeneratingAI(false);
+  }, []);
+
+  // Check server health on mount & visibly report any corrupted stored plan
   useEffect(() => {
     checkServerHealth().then(status => {
       setServerHealth(status);
     });
+
+    const loaded = loadPlanFromStorage();
+    if (loaded.isCorrupted && loaded.error) {
+      addToast(
+        `Stored plan was invalid or corrupted (${loaded.error}). Loaded default sample wedding safely.`,
+        'error'
+      );
+    }
+  }, [addToast]);
+
+  // Clean up in-flight requests on unmount
+  useEffect(() => {
+    return () => {
+      if (activeAbortController.current) {
+        activeAbortController.current.abort();
+      }
+    };
   }, []);
 
   // Save plan to localStorage on updates
@@ -112,15 +157,43 @@ export const App: React.FC = () => {
       setIsGeneratingAI(true);
       addToast('GatherWise AI is synthesizing your event proposal...', 'info');
 
-      activeAbortController.current = new AbortController();
+      const requestId = `req-prop-${Date.now()}`;
+      const eventId = plan.details.id;
+      const eventRevision = computeEventRevision(plan.details);
+
+      activeAbortController.current?.abort();
+      const controller = new AbortController();
+      activeAbortController.current = controller;
+      activeRequestRef.current = {
+        requestId,
+        type: 'proposal',
+        eventId,
+        eventRevision,
+      };
 
       try {
         const { proposal, isSampleMode, isLiveVerified } = await requestAIProposal(
           plan.details,
-          activeAbortController.current.signal
+          controller.signal
         );
 
-        setPendingProposal(proposal);
+        // Discard stale response if event changed, sample switched, or another request started
+        if (
+          !activeRequestRef.current ||
+          activeRequestRef.current.requestId !== requestId ||
+          activeRequestRef.current.eventId !== plan.details.id ||
+          activeRequestRef.current.eventRevision !== computeEventRevision(plan.details)
+        ) {
+          return;
+        }
+
+        const proposalWithMetadata: AIProposal = {
+          ...proposal,
+          targetEventId: eventId,
+          targetRevision: eventRevision,
+        };
+
+        setPendingProposal(proposalWithMetadata);
         setProposalModalOpen(true);
 
         if (isSampleMode) {
@@ -132,48 +205,39 @@ export const App: React.FC = () => {
           addToast('Generated AI proposal (live verification pending).', 'info');
         }
       } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
+        if ((err as Error).name !== 'AbortError' && !controller.signal.aborted) {
           addToast(`Generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         }
       } finally {
-        setIsGeneratingAI(false);
-        activeAbortController.current = null;
+        if (activeRequestRef.current?.requestId === requestId) {
+          setIsGeneratingAI(false);
+          activeAbortController.current = null;
+          activeRequestRef.current = null;
+        }
       }
     });
   };
 
-  // Apply proposal to plan after user explicit review & confirmation
-  const handleApplyProposal = (proposal: AIProposal) => {
-    const newBudget: BudgetCategory[] = proposal.budgetAllocations.map((alloc, idx) => ({
-      id: `cat-${Date.now()}-${idx}`,
-      name: alloc.category,
-      plannedAmount: alloc.plannedAmount,
-      actualAmount: 0,
-      notes: alloc.notes,
-      isContingency: alloc.isContingency,
-    }));
+  // Apply proposal to plan with explicit merge/replace mode
+  const handleApplyProposal = (proposal: AIProposal, mode: ProposalApplicationMode = 'merge') => {
+    // Prevent an old proposal from being applied to a different event
+    if (proposal.targetEventId && proposal.targetEventId !== plan.details.id) {
+      addToast('Cannot apply proposal: It was generated for a different event.', 'error');
+      setProposalModalOpen(false);
+      setPendingProposal(null);
+      return;
+    }
 
-    const newTasks: TimelineTask[] = proposal.tasks.map((task, idx) => ({
-      id: `task-${Date.now()}-${idx}`,
-      title: task.title,
-      category: task.category,
-      dueDate: task.dueDate,
-      owner: task.owner,
-      completed: false,
-      isCritical: task.isCritical,
-    }));
-
-    setPlan(prev => ({
-      ...prev,
-      budget: newBudget,
-      tasks: newTasks,
-      lastProposal: proposal,
-      updatedAt: new Date().toISOString(),
-    }));
+    setPlan(prev => applyProposalToPlan(prev, proposal, mode));
 
     setProposalModalOpen(false);
     setPendingProposal(null);
-    addToast('AI Proposal applied to your workspace!', 'success');
+    addToast(
+      mode === 'merge'
+        ? 'AI Proposal merged into your workspace!'
+        : 'AI Proposal applied to your workspace (replaced)!',
+      'success'
+    );
   };
 
   // 2. Budget Reduction Advice
@@ -183,16 +247,52 @@ export const App: React.FC = () => {
       setIsGeneratingAI(true);
       addToast('Analyzing line items for smart cost reductions...', 'info');
 
-      activeAbortController.current = new AbortController();
+      const requestId = `req-red-${Date.now()}`;
+      const eventId = plan.details.id;
+      const eventRevision = computeEventRevision(plan.details);
+      const budgetRevision = computeBudgetRevision(plan.budget);
+      const budgetSnapshot = plan.budget.map(b => ({
+        id: b.id,
+        name: b.name,
+        plannedAmount: b.plannedAmount,
+      }));
+
+      activeAbortController.current?.abort();
+      const controller = new AbortController();
+      activeAbortController.current = controller;
+      activeRequestRef.current = {
+        requestId,
+        type: 'reduction',
+        eventId,
+        eventRevision,
+        budgetRevision,
+      };
 
       try {
         const { result, isSampleMode, isLiveVerified } = await requestAIBudgetReduction(
           plan.details,
           plan.budget,
-          activeAbortController.current.signal
+          controller.signal
         );
 
-        setPendingBudgetReduction(result);
+        // Discard stale response if event or budget changed in the meantime
+        if (
+          !activeRequestRef.current ||
+          activeRequestRef.current.requestId !== requestId ||
+          activeRequestRef.current.eventId !== plan.details.id ||
+          activeRequestRef.current.budgetRevision !== computeBudgetRevision(plan.budget)
+        ) {
+          return;
+        }
+
+        const resultWithMetadata: BudgetReductionResult = {
+          ...result,
+          targetEventId: eventId,
+          targetRevision: eventRevision,
+          budgetSnapshot,
+        };
+
+        setPendingBudgetReduction(resultWithMetadata);
         setBudgetReductionModalOpen(true);
 
         if (isSampleMode) {
@@ -204,40 +304,66 @@ export const App: React.FC = () => {
           addToast('Generated reduction advice (live verification pending).', 'info');
         }
       } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
+        if ((err as Error).name !== 'AbortError' && !controller.signal.aborted) {
           addToast(`Optimization failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         }
       } finally {
-        setIsGeneratingAI(false);
-        activeAbortController.current = null;
+        if (activeRequestRef.current?.requestId === requestId) {
+          setIsGeneratingAI(false);
+          activeAbortController.current = null;
+          activeRequestRef.current = null;
+        }
       }
     });
   };
 
-  // Apply selected budget reductions
+  // Apply selected budget reductions with input modification detection
   const handleApplyBudgetReductions = (selectedCuts: ProposedBudgetCut[]) => {
-    const cutMap = new Map(selectedCuts.map(c => [c.categoryId, c.proposedAmount]));
+    if (!pendingBudgetReduction) return;
 
-    const updatedBudget = plan.budget.map(cat => {
-      if (cutMap.has(cat.id)) {
-        return {
-          ...cat,
-          plannedAmount: cutMap.get(cat.id)!,
-          notes: `${cat.notes ? cat.notes + ' | ' : ''}AI Cost-Optimized`,
-        };
+    // Validate event ID
+    if (pendingBudgetReduction.targetEventId && pendingBudgetReduction.targetEventId !== plan.details.id) {
+      addToast('Cannot apply reduction advice: Event has changed.', 'error');
+      setBudgetReductionModalOpen(false);
+      setPendingBudgetReduction(null);
+      return;
+    }
+
+    // Detect changed budget inputs before applying old reduction advice
+    if (pendingBudgetReduction.budgetSnapshot) {
+      const currentCategoryMap = new Map(plan.budget.map(c => [c.id, c.plannedAmount]));
+      const isBudgetModified =
+        plan.budget.length !== pendingBudgetReduction.budgetSnapshot.length ||
+        pendingBudgetReduction.budgetSnapshot.some(
+          (snap: any) => currentCategoryMap.get(snap.id) !== snap.plannedAmount
+        );
+
+      if (isBudgetModified) {
+        addToast(
+          'Budget line items were modified since this advice was generated. Please regenerate reduction advice.',
+          'error'
+        );
+        return;
       }
-      return cat;
-    });
+    }
+
+    const { updatedBudget, appliedSavings, appliedCount } = applyBudgetReductions(
+      plan.budget,
+      selectedCuts
+    );
 
     setPlan(prev => ({
       ...prev,
       budget: updatedBudget,
-      updatedAt: new Date().toISOString(),
+      lastModified: new Date().toISOString(),
     }));
 
     setBudgetReductionModalOpen(false);
     setPendingBudgetReduction(null);
-    addToast(`Applied budget reductions across ${selectedCuts.length} categories!`, 'success');
+    addToast(
+      `Applied budget reductions across ${appliedCount} categories (saved ${formatCurrency(appliedSavings, plan.details.currency)})!`,
+      'success'
+    );
   };
 
   // 3. Personalized Theme & Activity Ideas
@@ -247,18 +373,39 @@ export const App: React.FC = () => {
       setIsGeneratingAI(true);
       addToast('Brainstorming personalized themes and activities...', 'info');
 
-      activeAbortController.current = new AbortController();
+      const requestId = `req-ideas-${Date.now()}`;
+      const eventId = plan.details.id;
+      const eventRevision = computeEventRevision(plan.details);
+
+      activeAbortController.current?.abort();
+      const controller = new AbortController();
+      activeAbortController.current = controller;
+      activeRequestRef.current = {
+        requestId,
+        type: 'ideas',
+        eventId,
+        eventRevision,
+      };
 
       try {
         const { result, isSampleMode, isLiveVerified } = await requestAIIdeas(
           plan.details,
-          activeAbortController.current.signal
+          controller.signal
         );
+
+        if (
+          !activeRequestRef.current ||
+          activeRequestRef.current.requestId !== requestId ||
+          activeRequestRef.current.eventId !== plan.details.id ||
+          activeRequestRef.current.eventRevision !== computeEventRevision(plan.details)
+        ) {
+          return;
+        }
 
         setPlan(prev => ({
           ...prev,
           ideas: result,
-          updatedAt: new Date().toISOString(),
+          lastModified: new Date().toISOString(),
         }));
 
         setActiveTab('ideas');
@@ -272,12 +419,15 @@ export const App: React.FC = () => {
           addToast('Generated creative concepts (live verification pending).', 'info');
         }
       } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
+        if ((err as Error).name !== 'AbortError' && !controller.signal.aborted) {
           addToast(`Ideas generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         }
       } finally {
-        setIsGeneratingAI(false);
-        activeAbortController.current = null;
+        if (activeRequestRef.current?.requestId === requestId) {
+          setIsGeneratingAI(false);
+          activeAbortController.current = null;
+          activeRequestRef.current = null;
+        }
       }
     });
   };
@@ -313,6 +463,12 @@ export const App: React.FC = () => {
 
   // Switch to one of the rich sample events
   const handleLoadSample = (sampleType: EventType) => {
+    cancelActiveAI('Switched sample event');
+    setProposalModalOpen(false);
+    setPendingProposal(null);
+    setBudgetReductionModalOpen(false);
+    setPendingBudgetReduction(null);
+
     const sample = SAMPLE_EVENTS[sampleType];
     if (sample) {
       setPlan(sample);
@@ -322,6 +478,11 @@ export const App: React.FC = () => {
 
   // Clear all data and reset to fresh clean slate
   const handleClearPlan = () => {
+    cancelActiveAI('Cleared plan');
+    setProposalModalOpen(false);
+    setPendingProposal(null);
+    setBudgetReductionModalOpen(false);
+    setPendingBudgetReduction(null);
     clearPlanFromStorage();
     const cleanDetails: EventDetails = {
       id: `evt-${Date.now()}`,
@@ -457,7 +618,21 @@ export const App: React.FC = () => {
       <EventSetupModal
         isOpen={setupModalOpen}
         initialDetails={plan.details}
-        onSave={updatedDetails => setPlan(prev => ({ ...prev, details: updatedDetails }))}
+        onSave={updatedDetails => {
+          if (
+            updatedDetails.id !== plan.details.id ||
+            updatedDetails.name !== plan.details.name ||
+            updatedDetails.date !== plan.details.date ||
+            updatedDetails.totalBudget !== plan.details.totalBudget
+          ) {
+            cancelActiveAI('Event details modified');
+            setProposalModalOpen(false);
+            setPendingProposal(null);
+            setBudgetReductionModalOpen(false);
+            setPendingBudgetReduction(null);
+          }
+          setPlan(prev => ({ ...prev, details: updatedDetails, lastModified: new Date().toISOString() }));
+        }}
         onLoadSample={handleLoadSample}
         onClose={() => setSetupModalOpen(false)}
       />

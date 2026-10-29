@@ -90,6 +90,8 @@ export interface AIProposal {
   isLiveVerified?: boolean;
   modelIdentifier?: string;
   normalizationNotice?: string;
+  targetEventId?: string;
+  targetRevision?: string;
 }
 
 export interface ProposedBudgetCut {
@@ -110,6 +112,9 @@ export interface BudgetReductionResult {
   practicalTradeoffs: string[];
   isSampleMode: boolean;
   isLiveVerified?: boolean;
+  targetEventId?: string;
+  targetRevision?: string;
+  budgetSnapshot?: Array<{ id: string; name: string; plannedAmount: number }>;
 }
 
 export interface PersonalizedIdeasResult {

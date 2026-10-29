@@ -1,4 +1,4 @@
-import { BudgetCategory, AIProposalAllocation } from '../types';
+import { BudgetCategory, AIProposalAllocation, ProposedBudgetCut } from '../types';
 
 /**
  * Minor unit scaling factor (100 for cents/paise).
@@ -205,3 +205,61 @@ export function normalizeProposedAllocations(
     explanation: `Raw AI allocations totaled ${formatCurrency(fromMinorUnits(rawSumMinor))}. Deterministically ${adjustmentDirection} by ${diffDisplay} so categories + contingency equal your total budget of ${formatCurrency(totalBudget)} exactly.`,
   };
 }
+
+export interface ApplyBudgetReductionsResult {
+  updatedBudget: BudgetCategory[];
+  appliedSavings: number;
+  appliedCount: number;
+  uniqueModifications: ProposedBudgetCut[];
+}
+
+/**
+ * Pure function to apply selected budget cuts to the current budget.
+ * - Deterministically deduplicates cuts by categoryId.
+ * - Ensures savings are calculated accurately from unique category cuts.
+ * - Preserves existing actualAmount, category IDs, and other attributes.
+ */
+export function applyBudgetReductions(
+  currentBudget: BudgetCategory[],
+  selectedModifications: ProposedBudgetCut[]
+): ApplyBudgetReductionsResult {
+  const uniqueCutsMap = new Map<string, ProposedBudgetCut>();
+  for (const cut of selectedModifications) {
+    const existing = uniqueCutsMap.get(cut.categoryId);
+    if (!existing || cut.proposedAmount < existing.proposedAmount) {
+      uniqueCutsMap.set(cut.categoryId, cut);
+    }
+  }
+
+  const uniqueModifications = Array.from(uniqueCutsMap.values());
+  let totalAppliedSavingsMinor = 0;
+  let appliedCount = 0;
+
+  const updatedBudget = currentBudget.map(cat => {
+    if (uniqueCutsMap.has(cat.id)) {
+      const cut = uniqueCutsMap.get(cat.id)!;
+      const currentMinor = toMinorUnits(cat.plannedAmount);
+      const proposedMinor = Math.max(0, toMinorUnits(cut.proposedAmount));
+      const savingsMinor = Math.max(0, currentMinor - proposedMinor);
+      const newPlanned = fromMinorUnits(currentMinor - savingsMinor);
+
+      totalAppliedSavingsMinor += savingsMinor;
+      appliedCount++;
+
+      return {
+        ...cat,
+        plannedAmount: newPlanned,
+        notes: `${cat.notes ? cat.notes + ' | ' : ''}AI Cost-Optimized`,
+      };
+    }
+    return cat;
+  });
+
+  return {
+    updatedBudget,
+    appliedSavings: fromMinorUnits(totalAppliedSavingsMinor),
+    appliedCount,
+    uniqueModifications,
+  };
+}
+

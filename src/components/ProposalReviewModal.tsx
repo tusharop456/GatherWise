@@ -5,17 +5,20 @@ import {
   CheckSquare,
   AlertCircle,
   Check,
+  GitMerge,
+  RefreshCw,
 } from 'lucide-react';
 import { AIProposal, EventPlan } from '../types';
-import { formatCurrency } from '../utils/budget';
+import { formatCurrency, calculateActualTotal } from '../utils/budget';
 import { formatDisplayDate } from '../utils/dates';
+import { ProposalApplicationMode } from '../utils/planMerge';
 import { ConfirmDialog } from './ConfirmDialog';
 
 interface ProposalReviewModalProps {
   isOpen: boolean;
   proposal: AIProposal | null;
   currentPlan: EventPlan;
-  onApplyProposal: (proposal: AIProposal) => void;
+  onApplyProposal: (proposal: AIProposal, mode: ProposalApplicationMode) => void;
   onClose: () => void;
 }
 
@@ -27,6 +30,7 @@ export const ProposalReviewModal: React.FC<ProposalReviewModalProps> = ({
   onClose,
 }) => {
   const [showApplyConfirm, setShowApplyConfirm] = useState(false);
+  const [applyMode, setApplyMode] = useState<ProposalApplicationMode>('merge');
 
   if (!isOpen || !proposal) return null;
 
@@ -34,6 +38,7 @@ export const ProposalReviewModal: React.FC<ProposalReviewModalProps> = ({
   const existingBudgetCount = currentPlan.budget.length;
   const existingTasksCount = currentPlan.tasks.length;
   const hasExistingData = existingBudgetCount > 0 || existingTasksCount > 0;
+  const totalActualSpent = calculateActualTotal(currentPlan.budget);
 
   return (
     <div
@@ -75,33 +80,12 @@ export const ProposalReviewModal: React.FC<ProposalReviewModalProps> = ({
         </div>
 
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          {/* Existing Data Replacement Notice if applicable */}
-          {hasExistingData && (
-            <div
-              role="note"
-              style={{
-                backgroundColor: 'var(--amber-subtle)',
-                border: '1px solid var(--amber-border)',
-                borderRadius: 'var(--radius-md)',
-                padding: '0.75rem 1rem',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '0.65rem',
-              }}
-            >
-              <AlertCircle size={18} color="var(--amber-warning)" aria-hidden="true" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div style={{ fontSize: '0.85rem', color: 'var(--amber-text)', lineHeight: 1.4 }}>
-                <strong>Notice before applying:</strong> Your workspace currently has {existingBudgetCount} budget categories and {existingTasksCount} tasks. Applying this proposal will update the budget categories and merge preparation tasks. Existing vendor records will be preserved.
-              </div>
-            </div>
-          )}
-
           {/* Strategic Summary */}
           <div>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
               Executive Summary
             </span>
-            <p style={{ fontSize: '0.9375rem', color: 'var(--text-primary)', lineHeight: 1.5, backgroundColor: 'var(--bg-subtle)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)' }}>
+            <p style={{ fontSize: '0.9375rem', color: 'var(--text-primary)', lineHeight: 1.5, backgroundColor: 'var(--bg-subtle)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', margin: 0 }}>
               {proposal.summary}
             </p>
           </div>
@@ -110,6 +94,99 @@ export const ProposalReviewModal: React.FC<ProposalReviewModalProps> = ({
           {proposal.normalizationNotice && (
             <div style={{ backgroundColor: 'var(--forest-subtle)', border: '1px solid var(--forest-border)', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-md)', fontSize: '0.8125rem', color: 'var(--forest-text)' }}>
               <strong>Deterministic Normalization:</strong> {proposal.normalizationNotice}
+            </div>
+          )}
+
+          {/* Application Mode Selector when existing data exists */}
+          {hasExistingData && (
+            <div
+              style={{
+                backgroundColor: 'var(--bg-subtle)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                padding: '0.85rem 1rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Application Method
+                </span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Workspace has {existingBudgetCount} categories, {existingTasksCount} tasks ({formatCurrency(totalActualSpent, currency)} spent)
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setApplyMode('merge')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.5rem',
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: applyMode === 'merge' ? '2px solid var(--forest-primary)' : '1px solid var(--border-subtle)',
+                    backgroundColor: applyMode === 'merge' ? 'var(--forest-subtle)' : 'var(--bg-card)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <GitMerge size={16} color="var(--forest-primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Merge (Recommended)
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                      Preserve existing tasks, completion states, and recorded spending. Add new suggestions.
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setApplyMode('replace')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.5rem',
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: applyMode === 'replace' ? '2px solid var(--amber-warning)' : '1px solid var(--border-subtle)',
+                    backgroundColor: applyMode === 'replace' ? 'var(--amber-subtle)' : 'var(--bg-card)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <RefreshCw size={16} color="var(--amber-warning)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Replace All
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                      Overwrite categories and tasks with proposal. Custom tasks will be removed.
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <div
+                role="note"
+                style={{
+                  fontSize: '0.75rem',
+                  color: applyMode === 'merge' ? 'var(--forest-text)' : 'var(--amber-text)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                }}
+              >
+                <AlertCircle size={14} aria-hidden="true" />
+                <span>
+                  {applyMode === 'merge'
+                    ? `Safe Merge: Existing tasks and recorded expenses (${formatCurrency(totalActualSpent, currency)}) remain untouched.`
+                    : 'Notice: Replace will reset custom tasks and unmapped line items. Vendor records remain preserved.'}
+                </span>
+              </div>
             </div>
           )}
 
@@ -200,7 +277,7 @@ export const ProposalReviewModal: React.FC<ProposalReviewModalProps> = ({
             <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.25rem' }}>
               Planning Assumptions & Limitations:
             </strong>
-            <ul style={{ paddingLeft: '1.25rem', lineHeight: 1.4 }}>
+            <ul style={{ paddingLeft: '1.25rem', lineHeight: 1.4, margin: 0 }}>
               {proposal.assumptionsAndLimitations.map((item, idx) => (
                 <li key={idx} style={{ marginBottom: '0.15rem' }}>{item}</li>
               ))}
@@ -220,26 +297,32 @@ export const ProposalReviewModal: React.FC<ProposalReviewModalProps> = ({
               if (hasExistingData) {
                 setShowApplyConfirm(true);
               } else {
-                onApplyProposal(proposal);
+                onApplyProposal(proposal, applyMode);
               }
             }}
           >
             <Check size={16} aria-hidden="true" />
-            <span>Apply Proposal to Workspace</span>
+            <span>
+              {applyMode === 'merge' ? 'Apply Proposal to Workspace (Merge)' : 'Apply Proposal to Workspace (Replace)'}
+            </span>
           </button>
         </div>
       </div>
 
-      {/* Confirmation Dialog before overwriting */}
+      {/* Confirmation Dialog with explicit copy */}
       <ConfirmDialog
         isOpen={showApplyConfirm}
-        title="Apply Proposal to Active Plan?"
-        message={`This proposal will update ${proposal.budgetAllocations.length} budget categories and add ${proposal.tasks.length} timeline milestones. Your vendor records will be preserved.`}
-        confirmLabel="Yes, Apply Proposal"
+        title={applyMode === 'merge' ? 'Merge Proposal into Workspace?' : 'Replace Active Plan with Proposal?'}
+        message={
+          applyMode === 'merge'
+            ? `This will merge the proposal into your workspace. Planned allocations will update while preserving your recorded spending (${formatCurrency(totalActualSpent, currency)}) and all existing tasks. ${proposal.tasks.length} new milestone recommendations will be added.`
+            : `Warning: This will replace your current budget categories and timeline tasks with this proposal. Custom tasks and unmapped recorded spending will be removed. Vendor records remain preserved.`
+        }
+        confirmLabel={applyMode === 'merge' ? 'Yes, Apply Proposal (Merge)' : 'Yes, Replace Plan'}
         cancelLabel="Cancel"
         onConfirm={() => {
           setShowApplyConfirm(false);
-          onApplyProposal(proposal);
+          onApplyProposal(proposal, applyMode);
         }}
         onCancel={() => setShowApplyConfirm(false)}
       />
