@@ -1,0 +1,456 @@
+/* GatherWise Editorial Design System
+ * Palette: Off-white canvas, crisp white surfaces, charcoal text, deep forest-green accent.
+ * Amber and red reserved strictly for meaningful warnings and errors.
+ * 8px spacing scale, strong system typography, minimal shadows and borders.
+ */
+
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  
+  /* Canvas & Surfaces */
+  --bg-canvas: #F7F5EF;       /* Warm cream canvas */
+  --bg-surface: #FFFFFF;      /* White content surfaces */
+  --bg-sage: #E8EFE7;         /* Sage surface */
+  --bg-subtle: #F0ECE1;       /* Warm cream subtle surface */
+  --bg-hover: #E7E2D6;        /* Warm hover surface */
+  
+  /* Text */
+  --text-primary: #202923;    /* Charcoal text */
+  --text-secondary: #48544D;  /* Secondary charcoal */
+  --text-muted: #6E7B74;      /* Muted text */
+  --text-inverse: #FFFFFF;    /* Pure white */
+
+  /* Borders */
+  --border-subtle: #E2DDD5;   /* Warm subtle border */
+  --border-strong: #C4BCB0;   /* Strong warm border */
+
+  /* Forest Green Accent */
+  --forest-primary: #173F35;  /* Forest green */
+  --forest-hover: #0F2D26;    /* Dark forest green hover */
+  --forest-subtle: #E8EFE7;   /* Sage tint */
+  --forest-border: #C8D8C7;   /* Sage border */
+  --forest-text: #173F35;     /* Dark forest text */
+
+  /* Muted Gold Detail (sparingly for decoration) */
+  --gold-detail: #B99250;
+  --gold-subtle: rgba(185, 146, 80, 0.15);
+  --gold-border: rgba(185, 146, 80, 0.35);
+
+  /* Meaningful Warnings & Status */
+  --amber-warning: #B45309;
+  --amber-subtle: #FEF3C7;
+  --amber-border: #FCD34D;
+  --amber-text: #78350F;
+
+  --red-danger: #B91C1C;
+  --red-subtle: #FEE2E2;
+  --red-border: #FCA5A5;
+  --red-text: #7F1D1D;
+
+  --green-success: #166534;
+  --green-subtle: #DCFCE7;
+  --green-border: #86EFAC;
+  --green-text: #14532D;
+
+  /* Minimal Elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 24px -4px rgba(0, 0, 0, 0.1);
+
+  /* Subtle Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* 8px Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 40px;
+  --space-7: 48px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  min-height: 100vh;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tabular Numerals for Financial Data */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* Accessible focus ring across all interactive controls */
+*:focus-visible {
+  outline: 2px solid var(--forest-primary);
+  outline-offset: 2px;
+}
+
+/* Base button and interactive control */
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: 1rem;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  min-height: 40px;
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-md);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Primary Button (Forest Green) */
+.btn-primary {
+  background-color: var(--forest-primary);
+  color: var(--text-inverse);
+  border: 1px solid var(--forest-primary);
+  font-weight: 600;
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--forest-hover);
+  border-color: var(--forest-hover);
+}
+
+/* Cream Action Button (for Forest Green Banner) */
+.btn-cream {
+  background-color: var(--bg-canvas);
+  color: var(--forest-primary);
+  border: 1px solid rgba(23, 63, 53, 0.12);
+  font-weight: 600;
+}
+.btn-cream:hover:not(:disabled) {
+  background-color: #FFFFFF;
+  color: var(--forest-hover);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+/* Banner Outline Button */
+.btn-banner-outline {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  font-weight: 500;
+}
+.btn-banner-outline:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #FFFFFF;
+}
+
+/* Secondary Button (Clean subtle border) */
+.btn-secondary {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  font-weight: 500;
+}
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--bg-subtle);
+  border-color: var(--border-strong);
+}
+
+/* Danger Button */
+.btn-danger {
+  background-color: var(--red-danger);
+  color: var(--text-inverse);
+  border: 1px solid var(--red-danger);
+  font-weight: 600;
+}
+.btn-danger:hover:not(:disabled) {
+  background-color: #991B1B;
+}
+
+/* Subtle Icon Button */
+.btn-icon {
+  padding: 0.4rem;
+  min-height: 36px;
+  min-width: 36px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+}
+.btn-icon:hover:not(:disabled) {
+  background-color: var(--bg-subtle);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+}
+
+/* Surface Panel / Card (calm, minimal shadow, crisp border) */
+.card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-sage {
+  background-color: var(--bg-sage);
+  border: 1px solid var(--forest-border);
+}
+
+/* Form inputs & controls */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: var(--space-3);
+}
+
+.form-group label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.input-field, .select-field, .textarea-field {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  min-height: 42px;
+}
+
+.input-field:focus, .select-field:focus, .textarea-field:focus {
+  outline: none;
+  border-color: var(--forest-primary);
+  box-shadow: 0 0 0 2px var(--forest-subtle);
+}
+
+.input-field[aria-invalid="true"], .select-field[aria-invalid="true"], .textarea-field[aria-invalid="true"] {
+  border-color: var(--red-danger);
+}
+
+.field-error {
+  font-size: 0.8125rem;
+  color: var(--red-danger);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.25rem;
+}
+
+.field-hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+}
+
+/* Badges (restrained, typography-driven) */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  line-height: 1.2;
+}
+
+.badge-forest {
+  background-color: var(--forest-subtle);
+  color: var(--forest-text);
+  border: 1px solid var(--forest-border);
+}
+
+.badge-warning {
+  background-color: var(--amber-subtle);
+  color: var(--amber-text);
+  border: 1px solid var(--amber-border);
+}
+
+.badge-danger {
+  background-color: var(--red-subtle);
+  color: var(--red-text);
+  border: 1px solid var(--red-border);
+}
+
+.badge-success {
+  background-color: var(--green-subtle);
+  color: var(--green-text);
+  border: 1px solid var(--green-border);
+}
+
+.badge-neutral {
+  background-color: var(--bg-subtle);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Modal and Drawer Dialogs */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(18, 22, 20, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 100;
+  overflow-y: auto;
+}
+
+.modal-dialog {
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.modal-body {
+  padding: var(--space-4);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  background-color: var(--bg-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* Slide-over Drawer for per-row detail/editing */
+.drawer-dialog {
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 540px;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+/* Responsive Table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9375rem;
+}
+
+.data-table th {
+  padding: 0.75rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle);
+  background-color: var(--bg-subtle);
+}
+
+.data-table td {
+  padding: 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tr:hover td {
+  background-color: var(--bg-canvas);
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body, html {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    font-size: 12pt !important;
+  }
+  .card {
+    border: 1px solid #CCCCCC !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}
+
+/* Responsive Helpers */
+.hide-desktop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+  .show-mobile {
+    display: flex !important;
+  }
+  .hide-desktop {
+    display: flex !important;
+  }
+}

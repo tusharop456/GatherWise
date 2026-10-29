@@ -1,0 +1,242 @@
+import { EventPlan } from '../types';
+import { addDays, getTodayDateString } from '../utils/dates';
+
+const today = getTodayDateString();
+
+export const SAMPLE_WEDDING: EventPlan = {
+  version: 1,
+  details: {
+    id: 'sample-wedding-1',
+    name: "Aanya & Kabir's Royal Eco-Heritage Wedding",
+    type: 'wedding',
+    date: addDays(today, 120),
+    location: 'Jaipur, Rajasthan',
+    guestCount: 250,
+    totalBudget: 1800000,
+    currency: 'INR',
+    preferences: {
+      theme: 'Royal Eco-Heritage with Marigold & Terracotta Accents',
+      atmosphere: 'Regal, Celebratory, and Warmly Intimate',
+      dietary: ['Vegetarian', 'Jain Options', 'Gluten-Free Counter'],
+      accessibility: ['Step-Free Mandap & Banquet', 'Wheelchair Ramps at Entrance'],
+      cultural: 'North-Indian Marwari & Punjabi Fusion Rituals',
+    },
+    notes: 'Zero single-use plastic policy. Locally sourced seasonal flora. Two-day celebration with Sangeet followed by wedding banquet.',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  budget: [
+    { id: 'b-w-1', name: 'Heritage Courtyard Venue (2 Days)', plannedAmount: 550000, actualAmount: 520000, notes: 'Includes lawn, banquet hall, and bridal suites' },
+    { id: 'b-w-2', name: 'Artisan Catering & Live Counters (250 Pax)', plannedAmount: 480000, actualAmount: 495000, notes: 'Multi-course vegetarian & Jain feasts across 3 meals' },
+    { id: 'b-w-3', name: 'Eco-Friendly Floral & Fabric Decor', plannedAmount: 260000, actualAmount: 240000, notes: 'Marigolds, brass lanterns, potted foliage, zero thermocol' },
+    { id: 'b-w-4', name: 'Candid Photography & Cinematic Film', plannedAmount: 180000, actualAmount: 180000, notes: '2 lead photographers, drone coverage, and teaser video' },
+    { id: 'b-w-5', name: 'Folk Musicians & Live Sangeet Band', plannedAmount: 110000, actualAmount: 115000, notes: 'Rajasthani manganiyar artists & evening DJ' },
+    { id: 'b-w-6', name: 'Bridal & Groom Attire / Hair & Makeup', plannedAmount: 130000, actualAmount: 120000, notes: 'Handloom fabrics and organic artist styling' },
+    { id: 'b-w-7', name: 'Contingency & Emergency Buffer', plannedAmount: 90000, actualAmount: 30000, notes: 'Reserved for weather backup and last-minute guest additions', isContingency: true },
+  ],
+  tasks: [
+    { id: 't-w-1', title: 'Finalize heritage venue contract and deposit', category: 'Venue', dueDate: addDays(today, 10), owner: 'Kabir', completed: true, isCritical: true },
+    { id: 't-w-2', title: 'Conduct food tasting with eco-catering team', category: 'Catering', dueDate: addDays(today, 25), owner: 'Aanya', completed: true },
+    { id: 't-w-3', title: 'Approve zero-waste decor CAD mockup', category: 'Decor', dueDate: addDays(today, 40), owner: 'Aanya', completed: false },
+    { id: 't-w-4', title: 'Dispatch digital animated invitations & RSVP link', category: 'Invitations', dueDate: addDays(today, 50), owner: 'Kabir', completed: false, isCritical: true },
+    { id: 't-w-5', title: 'Confirm wheelchair access ramps and buggy transport', category: 'Logistics', dueDate: addDays(today, 80), owner: 'Aanya', completed: false },
+    { id: 't-w-6', title: 'Final venue walkthrough & sound level check', category: 'Logistics', dueDate: addDays(today, 110), owner: 'Kabir', completed: false, isCritical: true },
+  ],
+  vendors: [
+    {
+      id: 'v-w-1',
+      name: 'Haveli Heritage Palace',
+      category: 'Venue',
+      quote: 520000,
+      status: 'confirmed',
+      notes: 'Signed contract. Provides 4 complimentary dressing suites. Curfew 11 PM for outdoor music.',
+      checklistResponses: { 'capacity-verified': true, 'step-free-access': true, 'curfew-cleared': true, 'backup-generator': true },
+    },
+    {
+      id: 'v-w-2',
+      name: 'Rasoi Rasraj Gourmet Catering',
+      category: 'Catering',
+      quote: 495000,
+      status: 'confirmed',
+      notes: 'Customized Jain and satvik menu with live millet roti counters. Eco cutlery included.',
+      checklistResponses: { 'dietary-accommodated': true, 'tasting-completed': true, 'linens-included': true, 'staffing-ratio': true },
+    },
+    {
+      id: 'v-w-3',
+      name: 'Prakriti Sustainable Floral Studio',
+      category: 'Decor',
+      quote: 240000,
+      status: 'shortlisted',
+      notes: 'Terracotta vases and organic genda phool installations.',
+      checklistResponses: { 'setup-window-adequate': true, 'fire-safety-compliant': true, 'reusable-materials': true },
+    },
+  ],
+  ideas: {
+    summary: 'A regal royal eco-heritage wedding celebrating cultural heritage with modern zero-waste mindfulness.',
+    themes: [
+      { name: 'Genda Phool & Terracotta Splendor', description: 'Sun-kissed marigold arches paired with earthenware lanterns and upcycled brass urns.', decorNotes: 'Compostable florals, zero single-use floral foam or thermocol.' },
+      { name: 'Royal Rajputana Twilight', description: 'Deep jewel tones (emerald, plum, ochre) illuminated by warm micro-fairy lights and diyas.', decorNotes: 'Bespoke hand-block printed drapes in traditional bagru prints.' },
+    ],
+    activities: [
+      { title: 'Interactive Henna & Bangle Crafting Corner', audience: 'All Guests', description: 'Local female artisans crafting customized lacquer bangles and applying natural organic henna.' },
+      { title: 'Manganiyar Sunset Acoustic Jam', audience: 'Evening Gathering', description: 'Traditional folk ensemble performing soulful Sufi and regional folk melodies under open starlight.' },
+    ],
+    dietaryConsiderations: ['Dedicated separate Jain preparation station', 'Gluten-free millet dessert bar', 'Signature spiced pomegranate mocktail bar'],
+    accessibilityHighlights: ['Temporary non-slip ramp leading to the central wedding mandap', 'Dedicated golf cart shuttle from parking area', 'Clear aisle pathways for elders and wheelchairs'],
+    isSampleMode: true,
+  },
+  aiNoticeAcknowledged: true,
+  lastModified: new Date().toISOString(),
+};
+
+export const SAMPLE_BIRTHDAY: EventPlan = {
+  version: 1,
+  details: {
+    id: 'sample-birthday-1',
+    name: "Aarav's 10th Cosmic Explorer Birthday Mission",
+    type: 'birthday',
+    date: addDays(today, 28),
+    location: 'Bengaluru, Karnataka',
+    guestCount: 35,
+    totalBudget: 75000,
+    currency: 'INR',
+    preferences: {
+      theme: 'Deep Space Mission & Rocket Science Exploration',
+      atmosphere: 'High-Energy, Wonder-Filled, and Interactive',
+      dietary: ['Nut-Free (Strict Allergy)', 'Eggless Space-Themed Cake', 'Healthy Kids Snacks'],
+      accessibility: ['Sensory Quiet Corner for Overstimulated Kids', 'Step-Free Activity Area'],
+      cultural: 'Modern Kids Science Fiesta with Indian Space Program Pride',
+    },
+    notes: 'Indoor recreation hall booked. DIY bottle rocket demonstration and astronaut badge graduation ceremony.',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  budget: [
+    { id: 'b-b-1', name: 'Community Activity Hall Rental (4 Hours)', plannedAmount: 18000, actualAmount: 18000, notes: 'Includes AC, projector, and audio system' },
+    { id: 'b-b-2', name: 'STEM Space Workshop Host & Rocket Kits', plannedAmount: 20000, actualAmount: 21000, notes: '2 science facilitators, stomp rocket kits for all 25 kids' },
+    { id: 'b-b-3', name: 'Galaxy Fondant Cake & Kid-Friendly Catering', plannedAmount: 18000, actualAmount: 16500, notes: 'Strictly 100% nut-free kitchen; pizza slices, fruit skewers, juices' },
+    { id: 'b-b-4', name: 'Cosmic Nebula Lighting & Planet Balloons', plannedAmount: 9000, actualAmount: 9000, notes: 'Glow-in-the-dark stars, constellation photo booth' },
+    { id: 'b-b-5', name: 'Astronaut Return Gift Goodie Bags', plannedAmount: 6000, actualAmount: 5500, notes: 'Kaleidoscopes, space badges, and freeze-dried space strawberries' },
+    { id: 'b-b-6', name: 'Contingency & Extra Supplies', plannedAmount: 4000, actualAmount: 1200, notes: 'Spare batteries, rocket launcher parts', isContingency: true },
+  ],
+  tasks: [
+    { id: 't-b-1', title: 'Book science club instructor for rocket launch', category: 'Entertainment', dueDate: addDays(today, 7), owner: 'Mom', completed: true, isCritical: true },
+    { id: 't-b-2', title: 'Order nut-free astronaut space cake with bakery', category: 'Catering', dueDate: addDays(today, 12), owner: 'Dad', completed: true },
+    { id: 't-b-3', title: 'Assemble astronaut welcome kits and ID badges', category: 'Favors', dueDate: addDays(today, 20), owner: 'Mom', completed: false },
+    { id: 't-b-4', title: 'Set up galaxy projector and sound playlist', category: 'Decor', dueDate: addDays(today, 27), owner: 'Dad', completed: false },
+  ],
+  vendors: [
+    {
+      id: 'v-b-1',
+      name: 'RocketLab Kids Science Workshop',
+      category: 'Entertainment',
+      quote: 21000,
+      status: 'confirmed',
+      notes: 'Provides 2 science educators, stomp rocket gear, and certificates.',
+      checklistResponses: { 'equipment-provided': true, 'safety-goggles-included': true, 'age-appropriate': true },
+    },
+    {
+      id: 'v-b-2',
+      name: 'Sweet Galaxy Artisan Bakes',
+      category: 'Catering',
+      quote: 6500,
+      status: 'confirmed',
+      notes: 'Certified 100% peanut and tree-nut free facility. Eggless dark chocolate galaxy cake.',
+      checklistResponses: { 'allergen-isolation-guaranteed': true, 'delivery-timed': true },
+    },
+  ],
+  ideas: {
+    summary: 'An engaging space discovery milestone celebration featuring hands-on rocketry and planetary wonders.',
+    themes: [
+      { name: 'Voyager Deep Space Observatory', description: 'Deep midnight blue backdrop with glowing planetary mobiles, starlight ceiling projection, and lunar landing photo corner.', decorNotes: 'Bioluminescent stickers, black cardstock planet cutouts, and LED fiber optics.' },
+    ],
+    activities: [
+      { title: 'DIY Stomp Rocket Air Challenge', audience: 'Kids (Ages 7-12)', description: 'Kids build aerodynamic paper fins on foam rockets and launch them across the lawn measuring flight distance.' },
+      { title: 'Cosmic Sensory Escape Pod', audience: 'Quiet / Sensory Break', description: 'A cozy tent with bean bags, starry nebula light projection, and noise-dampening earmuffs.' },
+    ],
+    dietaryConsiderations: ['Strict nut-free protocol with visible ingredient card labels', 'Electrolyte fruit punches in astronaut squeeze pouches'],
+    accessibilityHighlights: ['Quiet sensory decompression zone', 'Visual schedule board for kids on the autism spectrum'],
+    isSampleMode: true,
+  },
+  aiNoticeAcknowledged: true,
+  lastModified: new Date().toISOString(),
+};
+
+export const SAMPLE_COMMUNITY: EventPlan = {
+  version: 1,
+  details: {
+    id: 'sample-community-1',
+    name: 'Greenfield Eco-Fair & Autumn Harvest Festival',
+    type: 'community',
+    date: addDays(today, 45),
+    location: 'Pune, Maharashtra',
+    guestCount: 600,
+    totalBudget: 250000,
+    currency: 'INR',
+    preferences: {
+      theme: 'Zero Waste Living & Native Biodiversity Celebration',
+      atmosphere: 'Welcoming, Multi-Generational, and Festive',
+      dietary: ['Locally Sourced Millet Treats', '100% Plant-Based Food Stalls', 'BYO-Cup Water Stations'],
+      accessibility: ['Step-Free Paved Stalls', 'Tactile Map at Entry', 'Sign Language Interpreter for Talks'],
+      cultural: 'Maharashtra Indigenous Seed Savers & Traditional Lezim Folk Dance',
+    },
+    notes: 'Free public park event organized by resident volunteers. Requires municipal sound permit, first aid station, and 20 waste-segregation volunteer marshals.',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  budget: [
+    { id: 'b-c-1', name: 'Municipal Park Permit, Waste Mgmt & Sanitation', plannedAmount: 45000, actualAmount: 42000, notes: 'Permits, portable eco-toilets, and compost bins' },
+    { id: 'b-c-2', name: 'Canopy Stalls, Tables & Solar Sound System', plannedAmount: 85000, actualAmount: 88000, notes: '30 artisan booths, stage risers, solar battery pack' },
+    { id: 'b-c-3', name: 'Signage, Wayfinding & Volunteer Kits', plannedAmount: 30000, actualAmount: 27000, notes: 'Reusable painted wood boards, hi-vis volunteer sashes' },
+    { id: 'b-c-4', name: 'Live Folk Music & Environmental Speakers', plannedAmount: 40000, actualAmount: 40000, notes: 'Honorariums for seed conservators and youth dance troupe' },
+    { id: 'b-c-5', name: 'Public First Aid Booth & Safety Supplies', plannedAmount: 25000, actualAmount: 22000, notes: 'St John ambulance paramedic station and hydration points' },
+    { id: 'b-c-6', name: 'Emergency Contingency Reserve', plannedAmount: 25000, actualAmount: 5000, notes: 'Weather protection covers and emergency crowd management', isContingency: true },
+  ],
+  tasks: [
+    { id: 't-c-1', title: 'Submit municipal park permit & noise clearance', category: 'Permits', dueDate: addDays(today, 10), owner: 'Ramesh (Lead)', completed: true, isCritical: true },
+    { id: 't-c-2', title: 'Recruit and train 20 youth eco-volunteers', category: 'Volunteers', dueDate: addDays(today, 25), owner: 'Pooja', completed: false, isCritical: true },
+    { id: 't-c-3', title: 'Confirm sign language interpreter for opening talks', category: 'Accessibility', dueDate: addDays(today, 30), owner: 'Anand', completed: false },
+    { id: 't-c-4', title: 'Conduct dry run of waste segregation stations', category: 'Logistics', dueDate: addDays(today, 40), owner: 'Ramesh', completed: false },
+  ],
+  vendors: [
+    {
+      id: 'v-c-1',
+      name: 'Pune Green Canopy & Event Infrastructure',
+      category: 'Equipment',
+      quote: 88000,
+      status: 'confirmed',
+      notes: 'Provides 30 bamboo framed booths, weather-resistant fabric covers, and stage podium.',
+      checklistResponses: { 'solar-power-ready': true, 'step-free-ramps': true, 'wind-anchors-rated': true },
+    },
+    {
+      id: 'v-c-2',
+      name: 'Swachh Earth Waste Solutions',
+      category: 'Logistics',
+      quote: 24000,
+      status: 'shortlisted',
+      notes: 'Provides 6 3-stream segregation stations and ensures 100% composting of organic waste.',
+      checklistResponses: { 'certified-compost-facility': true, 'hazard-waste-isolation': true },
+    },
+  ],
+  ideas: {
+    summary: 'A vibrant community-driven eco-fair connecting urban citizens with local farmers, zero-waste crafts, and traditional performing arts.',
+    themes: [
+      { name: 'Earth & Seed Revival', description: 'Natural unbleached cotton canopies adorned with marigold garlands, hand-painted wooden signboards, and living plant sapling displays.', decorNotes: '100% biodegradable and reusable infrastructure.' },
+    ],
+    activities: [
+      { title: 'Native Heirloom Seed Swap Exchange', audience: 'All Ages', description: 'Gardeners and farmers exchange indigenous vegetable and wildflower seeds with botanical care guides.' },
+      { title: 'Youth Upcycled Instrument Workshop', audience: 'Children & Families', description: 'Kids build maracas and drums from discarded coconuts and bamboo scraps, joining the closing parade.' },
+    ],
+    dietaryConsiderations: ['All stalls feature locally grown millet delicacies', 'Filtered hydration refill stations to eliminate bottled water'],
+    accessibilityHighlights: ['Braille and high-contrast tactile venue guide at main welcome portal', 'Paved flat walkways throughout with clear stroller and wheelchair clearance', 'Dedicated low-sensory shade marquee for quiet relaxation'],
+    isSampleMode: true,
+  },
+  aiNoticeAcknowledged: true,
+  lastModified: new Date().toISOString(),
+};
+
+export const SAMPLE_EVENTS: Record<string, EventPlan> = {
+  wedding: SAMPLE_WEDDING,
+  birthday: SAMPLE_BIRTHDAY,
+  community: SAMPLE_COMMUNITY,
+};
